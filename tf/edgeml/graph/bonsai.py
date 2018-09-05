@@ -131,7 +131,6 @@ class Bonsai:
 
     def assertInit(self):
         errRank = "All Parameters must has only two dimensions shape = [a, b]"
-        assert len(self.W.shape) == len(self.Z.shape), errRank
         assert len(self.W.shape) == len(self.T.shape), errRank
         assert len(self.W.shape) == 2, errRank
         msg = "W and V should be of same Dimensions"
@@ -139,9 +138,6 @@ class Bonsai:
         errW = "W and V are [numClasses*totalNodes, projectionDimension]"
         assert self.W.shape[0] == self.numClasses * self.totalNodes, errW
         assert self.W.shape[1] == self.projectionDimension, errW
-        errZ = "Z is [projectionDimension, dataDimension]"
-        assert self.Z.shape[0] == self.projectionDimension, errZ
-        assert self.Z.shape[1] == self.dataDimension, errZ
         errT = "T is [internalNodes, projectionDimension]"
         assert self.T.shape[0] == self.internalNodes, errT
         assert self.T.shape[1] == self.projectionDimension, errT
