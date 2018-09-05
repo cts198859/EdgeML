@@ -285,13 +285,13 @@ class BonsaiTrainer:
                     batchY = np.reshape(
                         batchY, [-1, self.bonsaiObj.numClasses])
 
-                    _feed_dict = {self.X: batchX}
-                    Xcapeval = self.X_.eval(feed_dict=_feed_dict)
+                    # _feed_dict = {self.X: batchX}
+                    # Xcapeval = self.X.eval(feed_dict=_feed_dict)
                     Teval = self.bonsaiObj.T.eval()
 
                     sum_tr = 0.0
                     for k in range(0, self.bonsaiObj.internalNodes):
-                        sum_tr += (np.sum(np.abs(np.dot(Teval[k], Xcapeval))))
+                        sum_tr += (np.sum(np.abs(np.dot(Teval[k], batchX.T))))
 
                     if(self.bonsaiObj.internalNodes > 0):
                         sum_tr /= (100 * self.bonsaiObj.internalNodes)
