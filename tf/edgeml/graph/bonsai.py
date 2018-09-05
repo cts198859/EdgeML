@@ -142,8 +142,6 @@ class Bonsai:
         assert self.T.shape[0] == self.internalNodes, errT
         assert self.T.shape[1] == self.projectionDimension, errT
         assert int(self.numClasses) > 0, "numClasses should be > 1"
-        msg = "# of features in data should be > 0"
-        assert int(self.dataDimension) > 0, msg
         msg = "Projection should be  > 0 dims"
         assert int(self.projectionDimension) > 0, msg
         msg = "treeDepth should be >= 0"
