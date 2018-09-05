@@ -84,7 +84,7 @@ class Bonsai:
         if self.score is not None:
             return self.score
 
-        X_ = X.T
+        X_ = tf.transpose(X)
 
         W_ = self.W[0:(self.numClasses)]
         V_ = self.V[0:(self.numClasses)]
