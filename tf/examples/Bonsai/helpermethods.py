@@ -14,7 +14,7 @@ import pandas as pd
 FEATURE_COLS = ['BITRATE_KBPS', 'BUFFER_SEC', 'DLTIME0_SEC', 'DLTIME1_SEC', 'DLTIME2_SEC',
                 'DLTIME3_SEC', 'DLTIME4_SEC', 'DLTIME5_SEC', 'DLTIME6_SEC', 'DLTIME7_SEC',
                 'THPT0_MBPS', 'THPT1_MBPS', 'THPT2_MBPS', 'THPT3_MBPS', 'THPT4_MBPS',
-                'THPT5_MBPS', 'THPT6_MBPS', 'THPT7_MBPS', 'THP_REGIME']
+                'THPT5_MBPS', 'THPT6_MBPS', 'THPT7_MBPS', 'THP_REGIME_IND']
 TARGET_COL = 'ACTION'
 
 
@@ -150,6 +150,10 @@ def preProcessData(dataDir):
     test_df = pd.read_csv(dataDir + '/train_data/tv_live_abr_test.csv')
     train_df = tempProcess(train_df)
     test_df = tempProcess(test_df)
+    train_df['THP_REGIME_IND'] = 0
+    train_df.loc[train_df.THP_REGIME == 'hi', 'THP_REGIME_IND'] = 1
+    test_df['THP_REGIME_IND'] = 0
+    test_df.loc[test_df.THP_REGIME == 'hi', 'THP_REGIME_IND'] = 1
     Xtrain = train_df[FEATURE_COLS].values
     Ytrain_ = train_df[TARGET_COL].values
     Xtest = test_df[FEATURE_COLS].values

@@ -197,7 +197,7 @@ class BonsaiTrainer:
         np.save(paramDir + "W.npy", self.bonsaiObj.W.eval())
         np.save(paramDir + "V.npy", self.bonsaiObj.V.eval())
         np.save(paramDir + "T.npy", self.bonsaiObj.T.eval())
-        hyperParamDict = {'dataDim': self.bonsaiObj.dataDimension,
+        hyperParamDict = {
                           'projDim': self.bonsaiObj.projectionDimension,
                           'numClasses': self.bonsaiObj.numClasses,
                           'depth': self.bonsaiObj.treeDepth,
