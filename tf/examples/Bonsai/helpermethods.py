@@ -9,6 +9,13 @@ import argparse
 import datetime
 import os
 import numpy as np
+import pandas as pd
+
+FEATURE_COLS = ['BITRATE_KBPS', 'BUFFER_SEC', 'DLTIME0_SEC', 'DLTIME1_SEC', 'DLTIME2_SEC',
+                'DLTIME3_SEC', 'DLTIME4_SEC', 'DLTIME5_SEC', 'DLTIME6_SEC', 'DLTIME7_SEC',
+                'THPT0_MBPS', 'THPT1_MBPS', 'THPT2_MBPS', 'THPT3_MBPS', 'THPT4_MBPS',
+                'THPT5_MBPS', 'THPT6_MBPS', 'THPT7_MBPS', 'THP_REGIME']
+TARGET_COL = 'ACTION'
 
 
 def checkIntPos(value):
@@ -49,16 +56,13 @@ def getArgs():
     '''
     parser = argparse.ArgumentParser(
         description='HyperParams for Bonsai Algorithm')
-    parser.add_argument('-dir', '--data-dir', required=True,
+    parser.add_argument('-dir', '--data-dir',
+                        default='/home/tchu/bonsai_train',
                         help='Data directory containing' +
                         'train.npy and test.npy')
-
-    parser.add_argument('-d', '--depth', type=checkIntNneg, default=2,
+    parser.add_argument('-d', '--depth', type=checkIntNneg, default=3,
                         help='Depth of Bonsai Tree ' +
-                        '(default: 2 try: [0, 1, 3])')
-    parser.add_argument('-p', '--proj-dim', type=checkIntPos, default=10,
-                        help='Projection Dimension ' +
-                        '(default: 20 try: [5, 10, 30])')
+                        '(default: 3 try: [0, 1, 3])')
     parser.add_argument('-s', '--sigma', type=float, default=1.0,
                         help='Parameter for sigmoid sharpness ' +
                         '(default: 1.0 try: [3.0, 0.05, 0.1]')
@@ -80,25 +84,19 @@ def getArgs():
     parser.add_argument('-rT', type=float, default=0.0001,
                         help='Regularizer for branching parameter Theta  ' +
                         '(default: 0.0001 try: [0.01, 0.001, 0.00001])')
-    parser.add_argument('-rZ', type=float, default=0.00001,
-                        help='Regularizer for projection parameter Z  ' +
-                        '(default: 0.00001 try: [0.001, 0.0001, 0.000001])')
 
-    parser.add_argument('-sW', type=checkFloatPos,
+    parser.add_argument('-sW', type=checkFloatPos, default=1.0,
                         help='Sparsity for predictor parameter W  ' +
                         '(default: For Binary classification 1.0 else 0.2 ' +
                         'try: [0.1, 0.3, 0.5])')
-    parser.add_argument('-sV', type=checkFloatPos,
+    parser.add_argument('-sV', type=checkFloatPos, default=1.0,
                         help='Sparsity for predictor parameter V  ' +
                         '(default: For Binary classification 1.0 else 0.2 ' +
                         'try: [0.1, 0.3, 0.5])')
-    parser.add_argument('-sT', type=checkFloatPos,
+    parser.add_argument('-sT', type=checkFloatPos, default=1.0,
                         help='Sparsity for branching parameter Theta  ' +
                         '(default: For Binary classification 1.0 else 0.2 ' +
                         'try: [0.1, 0.3, 0.5])')
-    parser.add_argument('-sZ', type=checkFloatPos, default=0.2,
-                        help='Sparsity for projection parameter Z  ' +
-                        '(default: 0.2 try: [0.1, 0.3, 0.5])')
     parser.add_argument('-oF', '--output-file', default=None,
                         help='Output file for dumping the program output, ' +
                         '(default: stdout)')
@@ -129,6 +127,18 @@ def createTimeStampDir(dataDir):
     return None
 
 
+def oneHot(Y, numClasses):
+    lab = Y.astype('uint8')
+    lab = np.array(lab) - min(lab)
+
+    lab_ = np.zeros((len(Y), numClasses))
+    lab_[np.arange(len(Y)), lab] = 1
+    if (numClasses == 2):
+        return np.reshape(lab, [-1, 1])
+    else:
+        return lab_
+
+
 def preProcessData(dataDir):
     '''
     Function to pre-process input data
@@ -136,49 +146,27 @@ def preProcessData(dataDir):
     Outputs a train and test set datapoints appended with 1 for Bias induction
     dataDimension, numClasses are inferred directly
     '''
-    train = np.load(dataDir + '/train.npy')
-    test = np.load(dataDir + '/test.npy')
-
-    dataDimension = int(train.shape[1]) - 1
-
-    Xtrain = train[:, 1:dataDimension + 1]
-    Ytrain_ = train[:, 0]
-    numClasses = max(Ytrain_) - min(Ytrain_) + 1
-
-    Xtest = test[:, 1:dataDimension + 1]
-    Ytest_ = test[:, 0]
-
+    train_df = pd.read_csv(dataDir + '/train_data/tv_live_abr_train.csv')
+    test_df = pd.read_csv(dataDir + '/train_data/tv_live_abr_test.csv')
+    train_df = tempProcess(train_df)
+    test_df = tempProcess(test_df)
+    Xtrain = train_df[FEATURE_COLS].values
+    Ytrain_ = train_df[TARGET_COL].values
+    Xtest = test_df[FEATURE_COLS].values
+    Ytest_ = test_df[TARGET_COL].values
+    dataDimension = int(Xtrain.shape[1])
+    numClasses = np.max(Ytrain_) - np.min(Ytrain_) + 1
     numClasses = int(max(numClasses, max(Ytest_) - min(Ytest_) + 1))
 
     # Mean Var Normalisation
-    mean = np.mean(Xtrain, 0)
-    std = np.std(Xtrain, 0)
+    mean = np.mean(Xtrain, axis=0)
+    std = np.std(Xtrain, axis=0)
     std[std[:] < 0.000001] = 1
     Xtrain = (Xtrain - mean) / std
-
     Xtest = (Xtest - mean) / std
     # End Mean Var normalisation
-
-    lab = Ytrain_.astype('uint8')
-    lab = np.array(lab) - min(lab)
-
-    lab_ = np.zeros((Xtrain.shape[0], numClasses))
-    lab_[np.arange(Xtrain.shape[0]), lab] = 1
-    if (numClasses == 2):
-        Ytrain = np.reshape(lab, [-1, 1])
-    else:
-        Ytrain = lab_
-
-    lab = Ytest_.astype('uint8')
-    lab = np.array(lab) - min(lab)
-
-    lab_ = np.zeros((Xtest.shape[0], numClasses))
-    lab_[np.arange(Xtest.shape[0]), lab] = 1
-    if (numClasses == 2):
-        Ytest = np.reshape(lab, [-1, 1])
-    else:
-        Ytest = lab_
-
+    Ytrain = oneHot(Ytrain_, numClasses)
+    Ytest = oneHot(Ytest_, numClasses)
     trainBias = np.ones([Xtrain.shape[0], 1])
     Xtrain = np.append(Xtrain, trainBias, axis=1)
     testBias = np.ones([Xtest.shape[0], 1])
@@ -187,12 +175,21 @@ def preProcessData(dataDir):
     return dataDimension + 1, numClasses, Xtrain, Ytrain, Xtest, Ytest
 
 
+def tempProcess(df):
+    new_df_ls = []
+    for session in df.SESSION.unique():
+        cur_df = df[df.SESSION == session]
+        cur_df['ACTION'] = cur_df.ACTION.shift(-1)
+        new_df_ls.append(cur_df.iloc[:-1])
+    return pd.concat(new_df_ls).reset_index(drop=True)
+
+
 def dumpCommand(list, currDir):
     '''
     Dumps the current command to a file for further use
     '''
     commandFile = open(currDir + '/command.txt', 'w')
-    command = "python"
+    command = "python3"
 
     command = command + " " + ' '.join(list)
     commandFile.write(command)

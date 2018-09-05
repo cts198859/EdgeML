@@ -11,12 +11,12 @@ import sys
 
 class BonsaiTrainer:
 
-    def __init__(self, bonsaiObj, lW, lT, lV, lZ, sW, sT, sV, sZ,
+    def __init__(self, bonsaiObj, lW, lT, lV, sW, sT, sV,
                  learningRate, X, Y, useMCHLoss=False, outFile=None):
         '''
         bonsaiObj - Initialised Bonsai Object and Graph
-        lW, lT, lV and lZ are regularisers to Bonsai Params
-        sW, sT, sV and sZ are sparsity factors to Bonsai Params
+        lW, lT, lV are regularisers to Bonsai Params
+        sW, sT, sV are sparsity factors to Bonsai Params
         learningRate - learningRate fro optimizer
         X is the Data Placeholder - Dims [_, dataDimension]
         Y - Label placeholder for loss computation
@@ -30,12 +30,10 @@ class BonsaiTrainer:
         self.lW = lW
         self.lV = lV
         self.lT = lT
-        self.lZ = lZ
 
         self.sW = sW
         self.sV = sV
         self.sT = sT
-        self.sZ = sZ
 
         self.Y = Y
         self.X = X
@@ -53,7 +51,7 @@ class BonsaiTrainer:
 
         self.sigmaI = tf.placeholder(tf.float32, name='sigmaI')
 
-        self.score, self.X_ = self.bonsaiObj(self.X, self.sigmaI)
+        self.score = self.bonsaiObj(self.X, self.sigmaI)
 
         self.loss, self.marginLoss, self.regLoss = self.lossGraph()
 
@@ -61,7 +59,7 @@ class BonsaiTrainer:
         self.accuracy = self.accuracyGraph()
         self.prediction = self.bonsaiObj.getPrediction()
 
-        if self.sW > 0.99 and self.sV > 0.99 and self.sZ > 0.99 and self.sT > 0.99:
+        if self.sW > 0.99 and self.sV > 0.99 and self.sT > 0.99:
             self.isDenseTraining = True
         else:
             self.isDenseTraining = False
@@ -73,8 +71,7 @@ class BonsaiTrainer:
         '''
         Loss Graph for given Bonsai Obj
         '''
-        self.regLoss = 0.5 * (self.lZ * tf.square(tf.norm(self.bonsaiObj.Z)) +
-                              self.lW * tf.square(tf.norm(self.bonsaiObj.W)) +
+        self.regLoss = 0.5 * (self.lW * tf.square(tf.norm(self.bonsaiObj.W)) +
                               self.lV * tf.square(tf.norm(self.bonsaiObj.V)) +
                               self.lT * tf.square(tf.norm(self.bonsaiObj.T)))
 
@@ -129,16 +126,14 @@ class BonsaiTrainer:
         '''
         self.__Wth = tf.placeholder(tf.float32, name='Wth')
         self.__Vth = tf.placeholder(tf.float32, name='Vth')
-        self.__Zth = tf.placeholder(tf.float32, name='Zth')
         self.__Tth = tf.placeholder(tf.float32, name='Tth')
 
         self.__Woph = self.bonsaiObj.W.assign(self.__Wth)
         self.__Voph = self.bonsaiObj.V.assign(self.__Vth)
         self.__Toph = self.bonsaiObj.T.assign(self.__Tth)
-        self.__Zoph = self.bonsaiObj.Z.assign(self.__Zth)
 
         self.hardThresholdGroup = tf.group(
-            self.__Woph, self.__Voph, self.__Toph, self.__Zoph)
+            self.__Woph, self.__Voph, self.__Toph)
 
     def sparseTraining(self):
         '''
@@ -146,11 +141,10 @@ class BonsaiTrainer:
         '''
         self.__Wops = self.bonsaiObj.W.assign(self.__Wth)
         self.__Vops = self.bonsaiObj.V.assign(self.__Vth)
-        self.__Zops = self.bonsaiObj.Z.assign(self.__Zth)
         self.__Tops = self.bonsaiObj.T.assign(self.__Tth)
 
         self.sparseRetrainGroup = tf.group(
-            self.__Wops, self.__Vops, self.__Tops, self.__Zops)
+            self.__Wops, self.__Vops, self.__Tops)
 
     def runHardThrsd(self, sess):
         '''
@@ -158,16 +152,14 @@ class BonsaiTrainer:
         '''
         currW = self.bonsaiObj.W.eval()
         currV = self.bonsaiObj.V.eval()
-        currZ = self.bonsaiObj.Z.eval()
         currT = self.bonsaiObj.T.eval()
 
         self.__thrsdW = utils.hardThreshold(currW, self.sW)
         self.__thrsdV = utils.hardThreshold(currV, self.sV)
-        self.__thrsdZ = utils.hardThreshold(currZ, self.sZ)
         self.__thrsdT = utils.hardThreshold(currT, self.sT)
 
         fd_thrsd = {self.__Wth: self.__thrsdW, self.__Vth: self.__thrsdV,
-                    self.__Zth: self.__thrsdZ, self.__Tth: self.__thrsdT}
+                    self.__Tth: self.__thrsdT}
         sess.run(self.hardThresholdGroup, feed_dict=fd_thrsd)
 
     def runSparseTraining(self, sess):
@@ -176,23 +168,20 @@ class BonsaiTrainer:
         '''
         currW = self.bonsaiObj.W.eval()
         currV = self.bonsaiObj.V.eval()
-        currZ = self.bonsaiObj.Z.eval()
         currT = self.bonsaiObj.T.eval()
 
         newW = utils.copySupport(self.__thrsdW, currW)
         newV = utils.copySupport(self.__thrsdV, currV)
-        newZ = utils.copySupport(self.__thrsdZ, currZ)
         newT = utils.copySupport(self.__thrsdT, currT)
 
         fd_st = {self.__Wth: newW, self.__Vth: newV,
-                 self.__Zth: newZ, self.__Tth: newT}
+                 self.__Tth: newT}
         sess.run(self.sparseRetrainGroup, feed_dict=fd_st)
 
     def assertInit(self):
         err = "sparsity must be between 0 and 1"
         assert self.sW >= 0 and self.sW <= 1, "W " + err
         assert self.sV >= 0 and self.sV <= 1, "V " + err
-        assert self.sZ >= 0 and self.sZ <= 1, "Z " + err
         assert self.sT >= 0 and self.sT <= 1, "T " + err
         errMsg = "Dimension Mismatch, Y has to be [_, " + \
             str(self.bonsaiObj.numClasses) + "]"
@@ -208,7 +197,6 @@ class BonsaiTrainer:
         np.save(paramDir + "W.npy", self.bonsaiObj.W.eval())
         np.save(paramDir + "V.npy", self.bonsaiObj.V.eval())
         np.save(paramDir + "T.npy", self.bonsaiObj.T.eval())
-        np.save(paramDir + "Z.npy", self.bonsaiObj.Z.eval())
         hyperParamDict = {'dataDim': self.bonsaiObj.dataDimension,
                           'projDim': self.bonsaiObj.projectionDimension,
                           'numClasses': self.bonsaiObj.numClasses,
@@ -227,7 +215,6 @@ class BonsaiTrainer:
         paramDict['W'] = np.load(paramDir + "W.npy")
         paramDict['V'] = np.load(paramDir + "V.npy")
         paramDict['T'] = np.load(paramDir + "T.npy")
-        paramDict['Z'] = np.load(paramDir + "Z.npy")
         hyperParamDict = np.load(paramDir + "hyperParam.npy").item()
 
         return paramDict, hyperParamDict
@@ -236,14 +223,13 @@ class BonsaiTrainer:
         '''
         Function to get aimed model size
         '''
-        nnzZ, sizeZ, sparseZ = utils.countnnZ(self.bonsaiObj.Z, self.sZ)
         nnzW, sizeW, sparseW = utils.countnnZ(self.bonsaiObj.W, self.sW)
         nnzV, sizeV, sparseV = utils.countnnZ(self.bonsaiObj.V, self.sV)
         nnzT, sizeT, sparseT = utils.countnnZ(self.bonsaiObj.T, self.sT)
 
-        totalnnZ = (nnzZ + nnzT + nnzV + nnzW)
-        totalSize = (sizeZ + sizeW + sizeV + sizeT)
-        hasSparse = (sparseW or sparseV or sparseT or sparseZ)
+        totalnnZ = (nnzT + nnzV + nnzW)
+        totalSize = (sizeW + sizeV + sizeT)
+        hasSparse = (sparseW or sparseV or sparseT)
         return totalnnZ, totalSize, hasSparse
 
     def train(self, batchSize, totalEpochs, sess,

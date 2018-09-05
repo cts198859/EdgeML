@@ -7,16 +7,16 @@ import numpy as np
 
 class Bonsai:
 
-    def __init__(self, numClasses, dataDimension, projectionDimension,
+    def __init__(self, numClasses, projectionDimension,
                  treeDepth, sigma,
-                 W=None, T=None, V=None, Z=None):
+                 W=None, T=None, V=None):
         '''
         Expected Dimensions:
 
         Bonsai Params // Optional
+        projectionDimension is the original feature dimension
         W [numClasses*totalNodes, projectionDimension]
         V [numClasses*totalNodes, projectionDimension]
-        Z [projectionDimension, dataDimension + 1]
         T [internalNodes, projectionDimension]
 
         internalNodes = 2**treeDepth - 1
@@ -28,8 +28,6 @@ class Bonsai:
         while doing testing/inference
         numClasses will be reset to 1 in binary case
         '''
-
-        self.dataDimension = dataDimension
         self.projectionDimension = projectionDimension
 
         if numClasses == 2:
@@ -46,20 +44,11 @@ class Bonsai:
         self.W = self.initW(W)
         self.V = self.initV(V)
         self.T = self.initT(T)
-        self.Z = self.initZ(Z)
 
         self.assertInit()
 
         self.score = None
-        self.X_ = None
         self.prediction = None
-
-    def initZ(self, Z):
-        if Z is None:
-            Z = tf.random_normal(
-                [self.projectionDimension, self.dataDimension])
-        Z = tf.Variable(Z, name='Z', dtype=tf.float32)
-        return Z
 
     def initW(self, W):
         if W is None:
@@ -87,16 +76,15 @@ class Bonsai:
         Function to build the Bonsai Tree graph
         Expected Dimensions
 
-        X is [_, self.dataDimension]
+        X is [_, self.projectionDimension]
         '''
-        errmsg = "Dimension Mismatch, X is [_, self.dataDimension]"
+        errmsg = "Dimension Mismatch, X is [_, self.projectionDimension]"
         assert (len(X.shape) == 2 and int(
-            X.shape[1]) == self.dataDimension), errmsg
+            X.shape[1]) == self.projectionDimension), errmsg
         if self.score is not None:
-            return self.score, self.X_
+            return self.score
 
-        X_ = tf.divide(tf.matmul(self.Z, X, transpose_b=True),
-                       self.projectionDimension)
+        X_ = X
 
         W_ = self.W[0:(self.numClasses)]
         V_ = self.V[0:(self.numClasses)]
@@ -122,8 +110,7 @@ class Bonsai:
                 tf.matmul(W_, X_), tf.tanh(self.sigma * tf.matmul(V_, X_)))
 
         self.score = score_
-        self.X_ = X_
-        return self.score, self.X_
+        return self.score
 
     def getPrediction(self):
         '''
